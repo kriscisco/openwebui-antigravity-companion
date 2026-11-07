@@ -122,6 +122,20 @@ def main():
     watcher_active = ("active" in res.stdout)
     record_test(10, "lkt-webui-watcher.service", watcher_active, f"State: {res.stdout.strip()}")
 
+    # Gate 11: User Linger Daemon Persistence
+    print(f"\n{CYAN}{BOLD}[GATE 11] User Session Linger Status{RESET}")
+    user = os.getenv("USER", "unknown")
+    res = subprocess.run(f"loginctl show-user {user} --property=Linger", shell=True, capture_output=True, text=True)
+    linger_ok = ("Linger=yes" in res.stdout)
+    record_test(11, "User Session Linger", linger_ok, f"Output: {res.stdout.strip()} (Run 'loginctl enable-linger' if failed)")
+
+    # Gate 12: Live Sync Execution Test
+    print(f"\n{CYAN}{BOLD}[GATE 12] Antigravity-to-WebUI Sync Pipeline{RESET}")
+    sync_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sync_antigravity.py")
+    res = subprocess.run([sys.executable, sync_py], capture_output=True, text=True)
+    sync_ok = (res.returncode == 0)
+    record_test(12, "Sync Script Execution", sync_ok, res.stdout.strip() if sync_ok else res.stderr.strip())
+
     print("\n" + "=" * 65)
     print(f"VERIFICATION SUMMARY: Total: {results['total']} | Passed: {results['passed']} | Defects: {results['failed']}")
     if results['failed'] == 0:

@@ -69,9 +69,14 @@ def get_webui_db_state():
 def run_sync_to_webui(transcript_path):
     global sync_lock_until
     try:
-        # Internal inline sync logic or script execution
-        print(f"[Watcher: A->B] Antigravity -> Open WebUI auto-sync triggered at {time.strftime('%H:%M:%S')}")
-        sync_lock_until = time.time() + 6.0
+        engine_dir = os.path.dirname(os.path.abspath(__file__))
+        sync_script = os.path.join(engine_dir, "sync_antigravity.py")
+        res = subprocess.run([sys.executable, sync_script], capture_output=True, text=True, timeout=30)
+        if res.returncode == 0:
+            print(f"[Watcher: A->B] Antigravity -> Open WebUI auto-sync OK at {time.strftime('%H:%M:%S')}")
+            sync_lock_until = time.time() + 6.0
+        else:
+            print(f"[Watcher: A->B] Sync warning: {res.stderr or res.stdout}")
     except Exception as e:
         print(f"[Watcher: A->B] Error: {e}")
 
