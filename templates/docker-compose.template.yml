@@ -1,0 +1,18 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: always
+    ports:
+      - "{{WEBUI_PORT}}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    volumes:
+      - open-webui_data:/app/backend/data
+      - {{PROJECT_WORKSPACE_PATH}}:/app/workspace/project:rw
+      - {{OMNI_AGENT_PATH}}:/app/workspace/omni-agent-os:rw
+
+volumes:
+  open-webui_data:

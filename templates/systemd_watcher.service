@@ -1,0 +1,13 @@
+[Unit]
+Description=LKT Real-Time Antigravity to Open WebUI Background Watcher
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={{PYTHON_PATH}} {{WATCHER_SCRIPT_PATH}}
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

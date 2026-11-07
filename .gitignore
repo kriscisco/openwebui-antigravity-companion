@@ -1,0 +1,19 @@
+# Environment & Secrets
+.env
+*.env.local
+probe_result.json
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# Runtime Data
+data/
+*.db
+*.sqlite3
+
+# Temporary & Test files
+.ecc_test_*
+.test_*
