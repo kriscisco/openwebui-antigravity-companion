@@ -240,17 +240,19 @@ def seed(db_path):
     c = conn.cursor()
     now = int(time.time())
 
-    # 1. Config Updates: Live Web Search & User Roles
+    # 1. Config Updates: Live Web Search, User Roles, and Memory Boost
     config_updates = [
         ('web.search.enable', 'true'),
         ('web.search.engine', '"duckduckgo"'),
         ('web.search.result_count', '5'),
         ('web.search.concurrent_requests', '1'),
-        ('ui.default_user_role', '"admin"')
+        ('ui.default_user_role', '"admin"'),
+        ('memories.user_char_limit', '16000'),
+        ('memories.context_char_limit', '16000')
     ]
     for k, v in config_updates:
         c.execute('INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?);', (k, v, now))
-    print("✔ Configured DuckDuckGo Live Web Search ($0) & Default Role 'admin'")
+    print("✔ Configured DuckDuckGo Live Web Search ($0), Default Role 'admin', & 16K Memory")
 
     # 2. Tool workspace_bridge
     tool_id = "workspace_bridge"
@@ -278,6 +280,7 @@ def seed(db_path):
     params = {
         "system": SYSTEM_PROMPT.strip(),
         "temperature": 0.5,
+        "max_tokens": 16384,
         "tool_ids": [tool_id]
     }
     meta_m = {
