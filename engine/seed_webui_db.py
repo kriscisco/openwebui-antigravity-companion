@@ -2,7 +2,8 @@
 """
 seed_webui_db.py
 Idempotent SQLite seeder for Open WebUI Companion Stack.
-Pure Python Standard Library. Injects workspace_bridge v2, lkt-hermes-orchestrator,
+Pure Python Standard Library. Injects workspace_bridge v2.1.0 (unrestricted workspace write,
+250KB read, 90s timeout), lkt-hermes-orchestrator, DuckDuckGo live web search,
 and architectural knowledge base into webui.db in a single atomic transaction.
 """
 
@@ -43,18 +44,19 @@ def get_tool_specs():
         },
         {
             "name": "read_workspace_file",
-            "description": "Read the content of a file within the project workspace (/app/workspace/project) or omni-agent-os (/app/workspace/omni-agent-os).",
+            "description": "Read the content of any file within the workspace (/app/workspace/project or /app/workspace/omni-agent-os).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "file_path": {"type": "string", "description": "Path to file. E.g., 'main.py' or '/app/workspace/omni-agent-os/governance/PROJECT_STATE.md'."}
+                    "file_path": {"type": "string", "description": "Path to file. E.g., 'main.py' or '/app/workspace/omni-agent-os/portal/server.py'."},
+                    "max_chars": {"type": "integer", "description": "Maximum characters to read (default 250,000 chars / ~250 KB).", "default": 250000}
                 },
                 "required": ["file_path"]
             }
         },
         {
             "name": "write_workspace_file",
-            "description": "Write or update a file within the project workspace (/app/workspace/project) with automatic UID/GID preservation.",
+            "description": "Write or update any file within the workspace (/app/workspace/project or /app/workspace/omni-agent-os) with automatic host permission preservation.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -66,11 +68,12 @@ def get_tool_specs():
         },
         {
             "name": "run_workspace_command",
-            "description": "Execute an audited bash command in the project directory (/app/workspace/project).",
+            "description": "Execute an audited bash command in the workspace directory (timeout 90s).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "command": {"type": "string", "description": "Shell command to run."}
+                    "command": {"type": "string", "description": "Shell command to run."},
+                    "working_dir": {"type": "string", "description": "Optional working directory in workspace.", "default": ""}
                 },
                 "required": ["command"]
             }
@@ -91,8 +94,8 @@ TOOL_CODE = '''"""
 title: Workspace & Terminal Bridge
 author: LKT Cyber & AI Unified System
 author_url: https://github.com/open-webui
-version: 2.0.0
-description: Autonomous tool bridge for ITIL RFC lifecycle, project file read/write, audited terminal execution, and two-way Antigravity synchronization.
+version: 2.1.0
+description: Autonomous tool bridge for ITIL RFC lifecycle, unrestricted workspace read/write, audited terminal execution, and two-way Antigravity synchronization.
 """
 
 import os
@@ -101,17 +104,12 @@ import subprocess
 
 class Tools:
     def __init__(self):
+        self.workspace_root = '/app/workspace'
         self.project_dir = '/app/workspace/project'
         self.governance_dir = '/app/workspace/omni-agent-os'
 
     def create_system_rfc(self, title: str, affected_files_csv: str = "", description: str = "") -> str:
-        """
-        Open a new ITIL RFC ticket and take automated safety snapshots before modifying files.
-        :param title: Brief title of the change.
-        :param affected_files_csv: Comma-separated list of files to be modified.
-        :param description: Scope and objective.
-        :return: Created RFC ID and snapshot path.
-        """
+        """Open a new ITIL RFC ticket and take automated safety snapshots before modifying files."""
         try:
             gov_dir = '/app/workspace/omni-agent-os/governance'
             if gov_dir not in sys.path:
@@ -130,12 +128,7 @@ class Tools:
             return f"Error opening RFC: {str(e)}"
 
     def verify_and_close_rfc(self, rfc_id: str, qa_summary: str = "ECC 15/15 PASS (Zero-Defect Certified)") -> str:
-        """
-        Execute automated Zero-Defect ECC verification suite and close RFC ticket.
-        :param rfc_id: The active RFC ID to close.
-        :param qa_summary: Brief test result summary.
-        :return: Test output snippet and RFC closure confirmation.
-        """
+        """Execute automated Zero-Defect ECC verification suite and close RFC ticket."""
         try:
             gov_dir = '/app/workspace/omni-agent-os/governance'
             if gov_dir not in sys.path:
@@ -144,8 +137,8 @@ class Tools:
 
             verify_script = '/app/workspace/omni-agent-os/ecc/verify.py'
             env = os.environ.copy()
-            env['PORTAL_HOST'] = 'host.docker.internal'
-            proc = subprocess.run(['python3', verify_script], env=env, capture_output=True, text=True, timeout=60)
+            env['PORTAL_HOST'] = '10.121.1.21'
+            proc = subprocess.run(['python3', verify_script], env=env, capture_output=True, text=True, timeout=90)
             out = proc.stdout
             if proc.stderr:
                 out += '\\n[STDERR]:\\n' + proc.stderr
@@ -163,47 +156,57 @@ class Tools:
         except Exception as e:
             return f"Error verifying and closing RFC: {str(e)}"
 
-    def read_workspace_file(self, file_path: str) -> str:
-        """Read content of a workspace file."""
+    def read_workspace_file(self, file_path: str, max_chars: int = 250000) -> str:
+        """Read content of any file within workspace (default up to 250KB)."""
         try:
             if not file_path.startswith('/app/workspace'):
                 file_path = os.path.join(self.project_dir, file_path.lstrip('/'))
             if not os.path.exists(file_path):
                 return f"Error: File {file_path} not found."
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                return f.read(50000)
+                return f.read(max_chars)
         except Exception as e:
             return f"Error reading file: {str(e)}"
 
     def write_workspace_file(self, file_path: str, content: str) -> str:
-        """Write file and preserve host user permissions."""
+        """Write file anywhere in /app/workspace and preserve host user permissions."""
         try:
             if not file_path.startswith('/app/workspace'):
                 file_path = os.path.join(self.project_dir, file_path.lstrip('/'))
+            if not file_path.startswith('/app/workspace'):
+                return f"Blocked: Target path {file_path} is outside /app/workspace boundary."
+
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             try:
-                # Set permissions to readable/writable by host user group
                 os.chmod(file_path, 0o664)
+                os.chown(file_path, 1001, 1001)
             except Exception:
                 pass
-            return f"Success: Saved {file_path} ({len(content)} bytes)."
+            return f"Success: Saved {file_path} ({len(content)} bytes, mode: 0664)."
         except Exception as e:
             return f"Error writing file: {str(e)}"
 
-    def run_workspace_command(self, command: str) -> str:
-        """Execute audited bash command in workspace."""
+    def run_workspace_command(self, command: str, working_dir: str = "") -> str:
+        """Execute audited bash command in workspace (timeout 90s)."""
         forbidden = ['rm -rf /', 'drop table', 'drop database', 'truncate', 'shutdown', 'reboot', 'mkfs']
         for bad in forbidden:
             if bad in command.lower():
                 return f"Blocked: Command contains forbidden operation '{bad}'."
+        target_cwd = self.project_dir
+        if working_dir:
+            target_cwd = working_dir if working_dir.startswith('/app/workspace') else os.path.join(self.project_dir, working_dir.lstrip('/'))
+        if not os.path.exists(target_cwd):
+            target_cwd = self.project_dir
         try:
-            res = subprocess.run(command, shell=True, cwd=self.project_dir, capture_output=True, text=True, timeout=30)
+            res = subprocess.run(command, shell=True, cwd=target_cwd, capture_output=True, text=True, timeout=90)
             out = res.stdout
             if res.stderr:
                 out += '\\n[STDERR]:\\n' + res.stderr
-            return out[:10000] if out else f"Finished with code {res.returncode}."
+            return out[:25000] if out else f"Finished with code {res.returncode}."
+        except subprocess.TimeoutExpired:
+            return "Command execution timed out after 90 seconds."
         except Exception as e:
             return f"Execution failed: {str(e)}"
 
@@ -237,29 +240,40 @@ def seed(db_path):
     c = conn.cursor()
     now = int(time.time())
 
-    # 1. Tool workspace_bridge
+    # 1. Config Updates: Live Web Search & User Roles
+    config_updates = [
+        ('web.search.enable', 'true'),
+        ('web.search.engine', '"duckduckgo"'),
+        ('web.search.result_count', '5'),
+        ('web.search.concurrent_requests', '1'),
+        ('ui.default_user_role', '"admin"')
+    ]
+    for k, v in config_updates:
+        c.execute('INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?);', (k, v, now))
+    print("✔ Configured DuckDuckGo Live Web Search ($0) & Default Role 'admin'")
+
+    # 2. Tool workspace_bridge
     tool_id = "workspace_bridge"
     specs = get_tool_specs()
     meta = json.dumps({
-        "description": "Autonomous tool bridge for ITIL RFC lifecycle, file editing, and two-way Antigravity sync.",
-        "manifest": {"title": "Workspace & Terminal Bridge", "author": "LKT Cyber & AI", "version": "2.0.0"}
+        "description": "Unrestricted autonomous tool bridge for ITIL RFC lifecycle, multi-workspace file operations, and two-way Antigravity sync.",
+        "manifest": {"title": "Workspace & Terminal Bridge (Unrestricted)", "author": "LKT Cyber & AI", "version": "2.1.0"}
     })
     c.execute("""
     INSERT OR REPLACE INTO tool (id, user_id, name, content, specs, meta, valves, updated_at, created_at, version_id, is_active)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (tool_id, "system", "Workspace & Terminal Bridge (Autonomous RFC Lifecycle)", TOOL_CODE, json.dumps(specs), meta, None, now, now, str(uuid.uuid4()), 1))
-    print(f"✔ Registered Tool: {tool_id} ({len(specs)} functions)")
+    """, (tool_id, "system", "Workspace & Terminal Bridge (Unrestricted)", TOOL_CODE, json.dumps(specs), meta, None, now, now, str(uuid.uuid4()), 1))
+    print(f"✔ Registered Tool: {tool_id} ({len(specs)} functions, unrestricted workspace write)")
 
-    # 2. Knowledge Collection
+    # 3. Knowledge Collection
     knowledge_id = "lkt-system-mastery"
     knowledge_name = "LKT System Mastery (RFC Exemplars & Skills)"
     c.execute("""
     INSERT OR REPLACE INTO knowledge (id, user_id, name, description, meta, created_at, updated_at, data)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (knowledge_id, "system", knowledge_name, "Master architectural exemplars & active skills", json.dumps({"tags": ["system", "governance"]}), now, now, json.dumps({})))
-    print(f"✔ Registered Knowledge Collection: {knowledge_id}")
 
-    # 3. Model Preset
+    # 4. Model Preset
     model_id = "lkt-hermes-orchestrator"
     params = {
         "system": SYSTEM_PROMPT.strip(),
@@ -267,7 +281,7 @@ def seed(db_path):
         "tool_ids": [tool_id]
     }
     meta_m = {
-        "description": "LKT Hermes Orchestrator — Autonomous ITIL RFC Lifecycle & Zero-Defect ECC Baseline.",
+        "description": "LKT Hermes Orchestrator — Unrestricted Workspace, Autonomous RFC, & Zero-Defect ECC Baseline.",
         "capabilities": {"vision": True, "citation": True},
         "tool_ids": [tool_id],
         "knowledge": [{"id": knowledge_id, "name": knowledge_name}]
