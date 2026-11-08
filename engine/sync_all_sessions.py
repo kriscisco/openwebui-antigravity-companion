@@ -88,7 +88,7 @@ def process_conversation(conv_id):
     messages = []
     parent_id = None
     for i, (role, text, ts) in enumerate(raw_turns):
-        msg_id = f"msg_{conv_id[:8]}_{i:03d}_{str(uuid.uuid4())[:8]}"
+        msg_id = f"msg_{conv_id[:8]}_{i:04d}"
         msg_obj = {
             'id': msg_id,
             'parentId': parent_id,
@@ -186,6 +186,8 @@ for data in payloads:
 
         # Insert messages
         for m in messages:
+            mid = m['id']
+            composite_id = f"{chat_id}-{mid}"
             c.execute("""
             INSERT OR REPLACE INTO chat_message (
                 id, chat_id, user_id, role, parent_id, content,
@@ -194,8 +196,8 @@ for data in payloads:
                 context_summary, meta
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                m['id'], chat_id, user_id, m['role'], m.get('parentId'),
-                m['content'], None, 'lkt-hermes-orchestrator', json.dumps([]),
+                composite_id, chat_id, user_id, m['role'], m.get('parentId'),
+                json.dumps(m['content']), None, 'lkt-hermes-orchestrator', json.dumps([]),
                 json.dumps([]), json.dumps([]), True, json.dumps([]), None,
                 json.dumps({}), m.get('timestamp', updated_at), m.get('timestamp', updated_at),
                 None, json.dumps({})

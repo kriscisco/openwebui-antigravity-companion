@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """
-sync_antigravity.py
-Universal Self-Contained Antigravity-to-OpenWebUI Transcript Synchronizer.
-Scans ~/.gemini/antigravity-cli/brain for the latest session, parses turns,
-and directly injects/updates the conversation in Open WebUI's SQLite database.
-Pure Python Standard Library (0 external dependencies).
+Antigravity to Open WebUI Two-Way Transcript Synchronizer
+Auto-detects the latest active Antigravity session and synchronizes it into Open WebUI SQLite database.
 """
-
 import os
 import sys
 import json
@@ -16,9 +12,8 @@ import uuid
 import subprocess
 from datetime import datetime
 
-HOME_DIR = os.path.expanduser("~")
-BRAIN_DIR = os.path.join(HOME_DIR, ".gemini", "antigravity-cli", "brain")
-CONTAINER_NAME = os.getenv("WEBUI_CONTAINER_NAME", "open-webui")
+BRAIN_DIR = "/home/kristian.admin/.gemini/antigravity-cli/brain"
+PAYLOAD_PATH = "/opt/ai-agent/omni-agent-os/governance/synced_chat_payload.json"
 
 def get_latest_conversation_id():
     if not os.path.exists(BRAIN_DIR):
@@ -55,6 +50,7 @@ def clean_user_content(text):
 def build_chat_payload(conv_id):
     transcript_path = os.path.join(BRAIN_DIR, conv_id, '.system_generated', 'logs', 'transcript.jsonl')
     if not os.path.exists(transcript_path):
+        print(f"Error: Transcript {transcript_path} not found.")
         return None
 
     with open(transcript_path, 'r', encoding='utf-8') as f:
@@ -78,7 +74,7 @@ def build_chat_payload(conv_id):
     messages = []
     parent_id = None
     for i, (role, text, ts) in enumerate(raw_turns):
-        msg_id = f"msg_{conv_id[:8]}_{i:03d}_{str(uuid.uuid4())[:8]}"
+        msg_id = f"msg_{conv_id[:8]}_{i:04d}"
         msg_obj = {
             'id': msg_id,
             'parentId': parent_id,
@@ -96,98 +92,45 @@ def build_chat_payload(conv_id):
 
     first_ts = raw_turns[0][2] if raw_turns else int(time.time())
 
-    return {
+    payload = {
         'id': f"chat_{conv_id}",
-        'title': "Antigravity Project — Live Continuum",
+        'title': "LKT Cyber Security Project — Continuum",
         'created_at': first_ts,
         'updated_at': int(time.time()),
         'messages': messages
     }
+    return payload
 
-def inject_to_webui_db(payload):
-    json_str = json.dumps(payload)
-    python_script = """
-import sqlite3, json, time, sys
+def main():
+    target_conv_id = sys.argv[1] if len(sys.argv) > 1 else get_latest_conversation_id()
+    if not target_conv_id:
+        print("Error: No active Antigravity conversation found.")
+        sys.exit(1)
 
-payload = json.loads(sys.stdin.read())
-chat_id = payload['id']
-title = payload['title']
-messages = payload['messages']
-now = int(time.time())
-
-conn = sqlite3.connect('/app/backend/data/webui.db')
-c = conn.cursor()
-
-c.execute("SELECT id FROM user;")
-user_rows = c.fetchall()
-target_users = [row[0] for row in user_rows] if user_rows else ['default_owner']
-
-for user_id in target_users:
-    chat_dict = {
-        'id': chat_id,
-        'title': title,
-        'models': ['lkt-hermes-orchestrator'],
-        'params': {},
-        'messages': messages,
-        'history': {
-            'messages': {m['id']: m for m in messages},
-            'currentId': messages[-1]['id'] if messages else None
-        }
-    }
-    c.execute('''
-    INSERT OR REPLACE INTO chat (
-        id, user_id, title, chat, created_at, updated_at,
-        share_id, archived, pinned, meta, folder_id, tasks,
-        summary, last_read_at, current_message_id, variables, timer_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        chat_id, user_id, title, json.dumps(chat_dict),
-        payload.get('created_at', now), now, None, False, False,
-        json.dumps({'source': 'antigravity_continuum'}), None, None,
-        'Percakapan aktif Antigravity disinkronkan secara real-time.',
-        now, messages[-1]['id'] if messages else None, json.dumps({}), None
-    ))
-    for m in messages:
-        c.execute('''
-        INSERT OR REPLACE INTO chat_message (
-            id, chat_id, user_id, role, parent_id, content,
-            output, model_id, files, sources, embeds, done,
-            status_history, error, usage, created_at, updated_at,
-            context_summary, meta
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            m['id'], chat_id, user_id, m['role'], m.get('parentId'),
-            m['content'], None, 'lkt-hermes-orchestrator', json.dumps([]),
-            json.dumps([]), json.dumps([]), True, json.dumps([]), None,
-            json.dumps({}), m.get('timestamp', now), m.get('timestamp', now),
-            None, json.dumps({})
-        ))
-
-conn.commit()
-conn.close()
-print(f"SUCCESS: Injected {len(messages)} turns into Open WebUI chat {chat_id}.")
-"""
-    cmd = ["docker", "exec", "-i", CONTAINER_NAME, "python3", "-c", python_script]
-    res = subprocess.run(cmd, input=json_str, capture_output=True, text=True, timeout=30)
-    if res.returncode == 0:
-        print(res.stdout.strip())
-        return True
-    else:
-        print(f"Failed to inject: {res.stderr or res.stdout}")
-        return False
-
-def sync_now(conv_id=None):
-    cid = conv_id or get_latest_conversation_id()
-    if not cid:
-        print("[Sync] No Antigravity conversation found.")
-        return False
-    payload = build_chat_payload(cid)
+    print(f"🔄 Synchronizing active conversation: {target_conv_id}")
+    payload = build_chat_payload(target_conv_id)
     if not payload:
-        print(f"[Sync] Failed to parse transcript for {cid}.")
-        return False
-    return inject_to_webui_db(payload)
+        sys.exit(1)
+
+    with open(PAYLOAD_PATH, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+
+    print(f"Payload compiled with {len(payload['messages'])} messages to {PAYLOAD_PATH}.")
+
+    cmd = [
+        "docker", "exec", "open-webui",
+        "python3", "/app/workspace/omni-agent-os/governance/import_payload_to_db.py"
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    print(res.stdout)
+    if res.stderr:
+        print("[STDERR]:", res.stderr)
+
+    if res.returncode == 0:
+        print(f"🎉 Antigravity-to-OpenWebUI synchronization complete for session {target_conv_id}!")
+    else:
+        print(f"❌ Synchronization failed with code {res.returncode}")
+        sys.exit(res.returncode)
 
 if __name__ == '__main__':
-    target = sys.argv[1] if len(sys.argv) > 1 else None
-    ok = sync_now(target)
-    sys.exit(0 if ok else 1)
+    main()
