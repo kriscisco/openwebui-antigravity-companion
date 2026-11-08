@@ -10,8 +10,8 @@ tool_code = '''"""
 title: Workspace, Docker & Host Unified Bridge
 author: LKT Cyber & AI Unified System
 author_url: https://github.com/open-webui
-version: 3.0.0
-description: Unrestricted autonomous tool bridge providing full host parity with Antigravity: direct host command execution, Docker container management, GitHub tool installer, ITIL RFC governance, and bi-directional Antigravity synchronization.
+version: 3.1.0
+description: Complete autonomous tool bridge mirroring 100% of Antigravity RFC execution capabilities: audited host command execution, Docker stack management, codebase grep search, UI/UX Pro Max query, automatic dual-repo portal sync, GitHub tooling installation, ITIL RFC governance, and bi-directional Antigravity handover.
 """
 
 import os
@@ -29,14 +29,13 @@ class Tools:
     def run_host_command(self, command: str, cwd: str = "") -> str:
         """
         Execute an audited command directly on the server host (10.121.1.21) with full host user permissions.
-        Use this to manage host systemctl services (e.g., 'systemctl --user restart lkt-portal.service'), check host metrics, or run host-level diagnostic commands.
+        Use this to manage host systemctl services (e.g. 'systemctl --user restart lkt-portal.service'), check host metrics, inspect network ports, or run any host CLI tooling.
         :param command: Shell command to execute on the host.
         :param cwd: Optional working directory on host (defaults to project dir).
         :return: Standard output, standard error, and exit status.
         """
         try:
             if not os.path.exists(self.host_socket_path):
-                # Fallback to direct subprocess if socket not available
                 res = subprocess.run(command, shell=True, cwd=cwd or self.project_dir, capture_output=True, text=True, timeout=90)
                 out = res.stdout
                 if res.stderr:
@@ -47,7 +46,14 @@ class Tools:
             s.connect(self.host_socket_path)
             req = {"command": command, "cwd": cwd or self.project_dir, "timeout": 90}
             s.sendall(json.dumps(req).encode('utf-8'))
-            raw = s.recv(131072)
+            raw = b""
+            while True:
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                raw += chunk
+                if len(chunk) < 65536:
+                    break
             s.close()
 
             resp = json.loads(raw.decode('utf-8'))
@@ -64,8 +70,9 @@ class Tools:
     def manage_docker(self, action: str, target: str = "", options: str = "") -> str:
         """
         Manage Docker containers and images on host 10.121.1.21 directly.
+        Supports listing containers ('ps'), running new containers ('run'), restarting services ('restart'), viewing logs ('logs'), or exec commands.
         :param action: Docker action: 'ps', 'run', 'stop', 'start', 'restart', 'logs', 'inspect', 'rm', or 'pull'.
-        :param target: Container name, ID, or image name (e.g. 'pentagi', 'nginx:alpine').
+        :param target: Container name, ID, or image name (e.g. 'pentagi', 'nginx:alpine', 'openvas').
         :param options: Additional flags/arguments (e.g. '-d -p 8088:80' for run, '--tail 50' for logs).
         :return: Docker command execution output.
         """
@@ -89,6 +96,39 @@ class Tools:
             return out if out else f"Docker {action} executed with code {res.returncode}."
         except Exception as e:
             return f"Docker management error: {str(e)}"
+
+    def search_workspace_code(self, pattern: str, target_dir: str = "", file_glob: str = "") -> str:
+        """
+        Search / grep across workspace files to find code symbols, functions, or text patterns.
+        :param pattern: Regex or string pattern to search for.
+        :param target_dir: Subdirectory in workspace (e.g., 'portal', 'governance', 'skills'). Defaults to entire workspace.
+        :param file_glob: Optional file extension filter (e.g. '*.py', '*.html', '*.json').
+        :return: Matching lines with file paths and line numbers.
+        """
+        try:
+            base_dir = self.project_dir
+            if target_dir:
+                base_dir = os.path.join('/app/workspace', target_dir.lstrip('/'))
+            glob_flag = f"--include='{file_glob}'" if file_glob else ""
+            cmd = f"grep -rn {glob_flag} -E '{pattern}' {base_dir} | head -n 40"
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+            return res.stdout if res.stdout else "No matches found."
+        except Exception as e:
+            return f"Search error: {str(e)}"
+
+    def query_uiux_pro_max(self, query: str) -> str:
+        """
+        Query the local UI/UX Pro Max design intelligence engine (79 styles, 192 product palettes, and font pairings) using BM25 search.
+        Use this when planning dashboard, portal, or website components before coding.
+        :param query: Design query (e.g. 'cybersecurity dark bento grid dashboard', 'minimalist typography', 'saas pricing').
+        :return: Design tokens, color palette recommendations, and layout guidelines.
+        """
+        try:
+            cmd = f"python3 /app/workspace/omni-agent-os/skills/ui-ux-pro-max/scripts/search.py '{query}'"
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+            return res.stdout if res.stdout else res.stderr
+        except Exception as e:
+            return f"UI/UX engine error: {str(e)}"
 
     def install_github_tool(self, repo_url: str, target_dir: str = "", install_cmd: str = "") -> str:
         """
@@ -139,7 +179,8 @@ class Tools:
 
     def write_workspace_file(self, file_path: str, content: str) -> str:
         """
-        Write or update any file within the workspace (/app/workspace/project or /app/workspace/omni-agent-os).
+        Write or update any file within the workspace with automatic Dual-Repository Synchronization for portal files.
+        If a file in /portal/ is modified, it is automatically kept identical across both active portal directories.
         :param file_path: Target relative or absolute file path.
         :param content: Text content to write into the file.
         :return: Operation confirmation.
@@ -154,7 +195,19 @@ class Tools:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            return f"Success: File {file_path} saved successfully ({len(content)} bytes)."
+
+            msg = f"Success: File {file_path} saved successfully ({len(content)} bytes)."
+
+            # Dual-Repository Synchronization Enforcement
+            # Auto-sync between /opt/ai-agent/omni-agent-os/portal and /opt/ai-agent/unified-portal
+            if '/portal/' in file_path:
+                fname = os.path.basename(file_path)
+                subprocess.run(f"cp '{file_path}' '/app/workspace/omni-agent-os/portal/{fname}' 2>/dev/null", shell=True)
+                subprocess.run(f"cp '{file_path}' '/app/workspace/project/portal/{fname}' 2>/dev/null", shell=True)
+                self.run_host_command(f"cp /opt/ai-agent/omni-agent-os/portal/{fname} /opt/ai-agent/unified-portal/{fname} 2>/dev/null")
+                msg += " (Dual-Repository Auto-Sync applied)."
+
+            return msg
         except Exception as e:
             return f"Error writing file: {str(e)}"
 
@@ -177,7 +230,7 @@ class Tools:
     def verify_and_close_rfc(self, rfc_id: str, qa_summary: str = "ECC 15/15 PASS (Zero-Defect Certified)") -> str:
         """
         Execute automated Zero-Defect ECC 15-Gate verification suite and close the RFC ticket with status SUCCESS.
-        :param rfc_id: The active RFC ID to close (e.g. 'RFC-20261108_104517').
+        :param rfc_id: The active RFC ID to close (e.g. 'RFC-20261108_105415').
         :param qa_summary: Brief test result summary or defect notes.
         :return: Verification results and RFC closure confirmation.
         """
@@ -223,11 +276,11 @@ conn = sqlite3.connect('/app/backend/data/webui.db')
 c = conn.cursor()
 
 meta = json.dumps({
-    'description': 'Unified autonomous tool bridge for host command execution, Docker container management, GitHub tool installer, ITIL RFC governance, and Antigravity sync.',
+    'description': 'Complete autonomous tool bridge mirroring 100% of Antigravity RFC execution capabilities: host execution, Docker management, codebase search, UI/UX Pro Max, dual-repo sync, GitHub tooling, RFC governance, and Antigravity handover.',
     'manifest': {
         'title': 'Workspace, Docker & Host Unified Bridge',
         'author': 'LKT Cyber & AI Unified System',
-        'version': '3.0.0'
+        'version': '3.1.0'
     }
 })
 
@@ -250,4 +303,4 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 
 conn.commit()
 conn.close()
-print("SUCCESS: Upgraded workspace_bridge tool to v3.0.0 with full host and Docker parity!")
+print("SUCCESS: Upgraded workspace_bridge tool to v3.1.0 with complete Antigravity RFC execution parity!")

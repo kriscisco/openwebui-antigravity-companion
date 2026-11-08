@@ -603,7 +603,7 @@ Sistem menolak rilis kode yang cacat atau berhalusinasi. Seluruh perubahan kode 
 
 ---
 
-## 3. RIWAYAT & REKAM JEJAK RFC ARSITEKTURAL (98 HISTORICAL RFCS)
+## 3. RIWAYAT & REKAM JEJAK RFC ARSITEKTURAL (104 HISTORICAL RFCS)
 
 | RFC ID | Waktu | Judul Perubahan | Pelaksana | Status | File Terdampak Utama |
 | :--- | :--- | :--- | :--- | :---: | :--- |
@@ -704,7 +704,13 @@ Sistem menolak rilis kode yang cacat atau berhalusinasi. Seluruh perubahan kode 
 | `RFC-20261107_112339` | 07 November 2026, 11:23:39 WIB | REVERSE SYNC ENGINE: OPEN WEBUI TO ANTIGRAVITY | Lead Architect (Hermes) | **SUCCESS** | `sync_webui_to_antigravity.py, register_tool_bridge.py` |
 | `RFC-20261107_113718` | 07 November 2026, 11:37:18 WIB | REAL-TIME BACKGROUND WATCHER DAEMON | Lead Architect (Hermes) | **SUCCESS** | `auto_sync_watcher.py, lkt-webui-watcher.service` |
 | `RFC-20261107_115640` | 07 November 2026, 11:56:40 WIB | TWO-WAY REAL-TIME ZERO-TOUCH WATCHER DAEMON | Lead Architect (Hermes) | **SUCCESS** | `auto_sync_watcher.py` |
-| `RFC-20261107_121941` | 07 November 2026, 12:19:41 WIB | Open WebUI Autonomous RFC Lifecycle and Knowledge Training | Lead Architect (Hermes) | **IN_PROGRESS** | `generate_rfc_exemplars.py, RFC_KNOWLEDGE_EXEMPLARS.md, register_tool_bridge.py` |
+| `RFC-20261107_121941` | 07 November 2026, 12:19:41 WIB | Open WebUI Autonomous RFC Lifecycle and Knowledge Training | Lead Architect (Hermes) | **SUCCESS** | `generate_rfc_exemplars.py, RFC_KNOWLEDGE_EXEMPLARS.md, register_tool_bridge.py` |
+| `RFC-20261107_122443` | 07 November 2026, 12:24:43 WIB | Autonomous Tool Bridge Integration Test | Lead Architect (Hermes - Open WebUI) | **SUCCESS** | `server.py` |
+| `RFC-20261107_125402` | 07 November 2026, 12:54:02 WIB | Universal Open WebUI Antigravity Companion Repository Package | Lead Architect (Hermes) | **SUCCESS** | `SKILL.md, AGENT_GUIDE.md, README.md` |
+| `RFC-20261108_063515` | 08 November 2026, 06:35:15 WIB | Open WebUI Unrestricted Workspace and Live Web Search Enablement | Lead Architect (Hermes) | **SUCCESS** | `register_tool_bridge.py, .env, seed_webui_db.py` |
+| `RFC-20261108_080500` | 08 November 2026, 08:05:00 WIB | Open WebUI Model Preset Unthrottled Expansion and Memory Boost | Lead Architect (Hermes) | **SUCCESS** | `register_model_preset.py, seed_webui_db.py` |
+| `RFC-20261108_085728` | 08 November 2026, 08:57:28 WIB | Dedicated OpenRouter API Key Attachment openrouter-share-kristian.tcs | Lead Architect (Hermes) | **SUCCESS** | `.env` |
+| `RFC-20261108_105415` | 08 November 2026, 10:54:15 WIB | ENABLE_OPENWEBUI_HOST_AND_DOCKER_CONTROL | Lead Architect (Hermes) | **SUCCESS** | `register_workspace_bridge.py, docker-compose.yaml` |
 
 ### Pola Solusi Rekayasa Berulang (Key Engineering Patterns)
 1. **Dual-Repository Sync Pattern**: Setiap update di `/opt/ai-agent/unified-portal/` wajib di-mirror ke `/opt/ai-agent/omni-agent-os/portal/` agar Gate 1 ECC test tidak gagal.
