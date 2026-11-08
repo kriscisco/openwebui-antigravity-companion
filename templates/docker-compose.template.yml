@@ -13,6 +13,8 @@ services:
       - open-webui_data:/app/backend/data
       - {{PROJECT_WORKSPACE_PATH}}:/app/workspace/project:rw
       - {{OMNI_AGENT_PATH}}:/app/workspace/omni-agent-os:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
 
 volumes:
   open-webui_data:
