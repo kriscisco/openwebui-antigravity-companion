@@ -142,7 +142,7 @@ for user_id in target_users:
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         chat_id, user_id, title, json.dumps(chat_dict),
-        payload.get('created_at', now), now, None, False, True,
+        payload.get('created_at', now), now, None, False, False,
         json.dumps({'source': 'antigravity_continuum'}), None, None,
         'Percakapan aktif Antigravity disinkronkan secara real-time.',
         now, messages[-1]['id'] if messages else None, json.dumps({}), None
