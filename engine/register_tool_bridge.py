@@ -247,6 +247,25 @@ class Tools:
         except Exception as e:
             return f"Verification error: {str(e)}"
 
+    def compact_chat_context(self, chat_id: str = "") -> str:
+        """
+        Manually trigger context compaction on an Open WebUI chat session to compress old turns into a summary checkpoint and free context window space.
+        :param chat_id: Optional target chat ID. If omitted, automatically selects the latest active conversation.
+        :return: Compaction summary result and confirmation.
+        """
+        try:
+            db_script = 'import sqlite3; conn=sqlite3.connect("/app/backend/data/webui.db"); c=conn.cursor(); c.execute("SELECT id FROM chat ORDER BY updated_at DESC LIMIT 1"); print(c.fetchone()[0])'
+            res = subprocess.run(['python3', '-c', db_script], capture_output=True, text=True)
+            target_id = chat_id or (res.stdout.strip() if res.returncode == 0 else "")
+            if not target_id:
+                return "Error: Could not identify target chat for compaction."
+
+            api_cmd = f"curl -s -X POST http://127.0.0.1:8080/api/v1/chats/{target_id}/compact"
+            api_res = subprocess.run(api_cmd, shell=True, capture_output=True, text=True, timeout=30)
+            return f"Context compaction executed for chat {target_id}. Result: {api_res.stdout[:500]}"
+        except Exception as e:
+            return f"Compaction error: {str(e)}"
+
     def sync_to_antigravity(self, note: str = "") -> str:
         """
         Synchronize the current conversation history, decisions, and workspace state from Open WebUI back to Antigravity so work continues seamlessly without briefing again.
